@@ -1,5 +1,5 @@
 {
-    "name": "mahmad/jira",
+    "name": "mahmad/jiragovernace",
     "description": "Jira governace",
     "type": "library",
     "require": {
@@ -14,7 +14,7 @@
         }
     ],
 	"autoload": {
-        "psr-4": {"mahmad\\Jira\\": "src/"}
+        "psr-4": {"mahmad\\JiraGovernace\\": "src/"}
     },
     "minimum-stability": "stable"
 }
