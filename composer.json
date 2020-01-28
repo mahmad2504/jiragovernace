@@ -1,0 +1,20 @@
+{
+    "name": "mahmad/jira",
+    "description": "Jira governace",
+    "type": "library",
+    "require": {
+        "symfony/var-dumper": "5.0",
+        "phpoffice/phpspreadsheet": "1.10"
+    },
+    "license": "open sorce",
+    "authors": [
+        {
+            "name": "mahmad",
+            "email": "mumtazahmad2504@gmail.com"
+        }
+    ],
+	"autoload": {
+        "psr-4": {"mahmad\\Jira\\": "src/"}
+    },
+    "minimum-stability": "stable"
+}
