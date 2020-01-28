@@ -1,12 +1,12 @@
 {
-    "name": "mahmad2504/jiragovernace",
+    "name": "mahmad/jiragovernace",
     "description": "Jira governace",
     "type": "library",
     "require": {
         "symfony/var-dumper": "5.0",
         "phpoffice/phpspreadsheet": "1.10"
     },
-    "license": "open sorce",
+    "license": "MIT",
     "authors": [
         {
             "name": "mahmad",
