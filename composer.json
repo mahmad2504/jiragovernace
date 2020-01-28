@@ -15,5 +15,6 @@
     ],
 	"autoload": {
         "psr-4": {"mahmad\\JiraGovernace\\": "src/"}
-    }
+    },
+	"minimum-stability": "dev"
 }
