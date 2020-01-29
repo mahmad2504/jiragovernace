@@ -68,13 +68,9 @@ class Jira
 	public $fields;
 	function __construct($config)
 	{
-		global $argc, $argv;
-		$this->rebuild=0;
-		foreach($argv as $value)
-		{
-		  if(strtolower($value)=='rebuild')
-			  $this->rebuild=1;
-		}
+		
+		$this->rebuild=$config['rebuild'];
+		
 		
 		$storypoints_field = 'customfield_10022';
 		$sprint_field  = 'customfield_11040';
@@ -110,33 +106,28 @@ class Jira
 			$this->ProcessSprint($sprint);
 		}
 		usort($this->sprint_data, [$this,'cmp_sprintname']);
-		$plan = [];
+		
 		if(!file_exists($this->version."/plan.xlsm"))
 		{
-			echo "Plan file not found";
+			echo "plan.xlsm file not found in ".$this->version." folder";
 			exit();
 		}
 		$spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($this->version."/plan.xlsm"); 
 		$data = $spreadsheet->getActiveSheet()->toArray(null,true,true,true); 
+		
+		$inplan=0;
 		foreach($data as $row)
 		{
-			$milestone = $row['A'];
-			//echo $milestone."\n";
-			//$labels = $row['B'];
 			$i=0;
 			foreach($row as $cell)
 			{
-				if($i++<1)
-					continue;
+				$i++;
 				if($cell == null)
 				{
 					
 				}
 				else
 				{
-					//echo $cell."\n";
-					if($milestone != 'IGNORE ')
-						$plan[$cell] = $cell;
 					
 					$found=0;
 					for($j=0;$j<count($this->sprint_data);$j++)
@@ -146,14 +137,35 @@ class Jira
 							$found=1;
 							//unset($jira->sprint_data[$j]->tasks);
 							$this->sprint_data[$j]->inplan = 1;
-							if($milestone == 'IGNORE ')
+							
+							if($i == 1)
 								$this->sprint_data[$j]->ignore = 1;
+							else
+							{
+								$inplan=1;
+								$plan[$cell] = $cell;
+							}
 							//dump($jira->sprint_data[$j]);
 							break;
 						}
 					}
 				}
 			}
+		}
+		if($inplan==0)
+		{
+			printf("%s\n",R("Plan is emplty. Mention some sprints in plan"));
+			//usort($this->sprint_data, [$this,'cmp_sprintstate']);
+			echo TITLE('All Sprints')."\n";
+			printf("%s|%s|%s|%s|%s \n",C(P30('Sprint Name')),C(P5('ID')),C(P5('Issue')),C(P5('Estimate')),C(P10('State')));
+			$message = G('None');
+			foreach($this->sprint_data as $sprint)
+			{
+				printf("%s|%s|%s|%s|%s \n",P30($sprint->name),P5($sprint->no),P5($sprint->issuecount),P5($sprint->estimate),P10($sprint->state));
+				$message = '';
+			}
+			echo  $message."\n";
+			exit();
 		}
 		/**********************************************************************/
 		echo TITLE('Sprints out of plan')."\n";
@@ -363,6 +375,9 @@ class Jira
 		echo "Done";
 
 
+	}
+	private  function cmp_sprintstate($a, $b) {
+		return strcmp($a->state, $b->state);
 	}
 	private  function cmp_sprintname($a, $b) {
 		return strcmp($a->name, $b->name);
