@@ -5,6 +5,7 @@
     "require": {
         "symfony/var-dumper": "5.0",
         "phpoffice/phpspreadsheet": "1.10"
+		"cheprasov/php-cli-args":"3.0.0"
     },
     "license": "MIT",
     "authors": [
