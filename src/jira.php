@@ -157,11 +157,11 @@ class Jira
 			printf("%s\n",R("Plan is emplty. Mention some sprints in plan"));
 			//usort($this->sprint_data, [$this,'cmp_sprintstate']);
 			echo TITLE('All Sprints')."\n";
-			printf("%s|%s|%s|%s|%s \n",C(P30('Sprint Name')),C(P5('ID')),C(P5('Issue')),C(P5('Estimate')),C(P10('State')));
+			printf("%s|%s|%s|%s|%s \n",C(P30('Sprint Name')),C(P5('ID')),C(P5('Board')),C(P5('Issue')),C(P5('Estimate')),C(P10('State')));
 			$message = G('None');
 			foreach($this->sprint_data as $sprint)
 			{
-				printf("%s|%s|%s|%s|%s \n",P30($sprint->name),P5($sprint->no),P5($sprint->issuecount),P5($sprint->estimate),P10($sprint->state));
+				printf("%s|%s|%s|%s|%s|%s \n",P30($sprint->name),P5($sprint->no),P5($sprint->id),P5($sprint->issuecount),P5($sprint->estimate),P10($sprint->state));
 				$message = '';
 			}
 			echo  $message."\n";
@@ -169,13 +169,13 @@ class Jira
 		}
 		/**********************************************************************/
 		echo TITLE('Sprints out of plan')."\n";
-		printf("%s|%s|%s|%s|%s \n",C(P30('Sprint Name')),C(P5('ID')),C(P5('Issue')),C(P5('Estimate')),C(P10('State')));
+		printf("%s|%s|%s|%s|%s \n",C(P30('Sprint Name')),C(P5('ID')),C(P5('Board')),C(P5('Issue')),C(P5('Estimate')),C(P10('State')));
 		$message = G('None');
 		foreach($this->sprint_data as $sprint)
 		{
 			if($sprint->inplan==0)
 			{
-				printf("%s|%s|%s|%s|%s \n",R(P30($sprint->name)),P5($sprint->no),P5($sprint->issuecount),P5($sprint->estimate),P10($sprint->state));
+				printf("%s|%s|%s|%s|%s \n",R(P30($sprint->name)),P5($sprint->no),P5($sprint->id),P5($sprint->issuecount),P5($sprint->estimate),P10($sprint->state));
 				$message = '';
 			}
 		}
@@ -184,7 +184,7 @@ class Jira
 		/**********************************************************************/
 		$active_sprints = [];
 		echo TITLE("Active Sprints!")."\n";
-		printf("%s|%s|%s|%s \n",C(P30('Sprint Name')),C(P5('ID')),C(P5('Issue')),C(P5('Estimate')));
+		printf("%s|%s|%s|%s|%s|%s \n",C(P30('Sprint Name')),C(P5('ID')),C(P5('Board')),C(P5('Issue')),C(P5('Estimate')),C(P5('Completed')));
 		foreach($this->sprint_data as $sprint)
 		{
 			if(array_key_exists($sprint->name, $plan))
@@ -196,13 +196,13 @@ class Jira
 		sort($active_sprints);
 		foreach($active_sprints as $sprint)
 		{
-			printf("%s|%s|%s|%s \n",P30($sprint->name),P5($sprint->no),P5($sprint->issuecount),P5($sprint->estimate));
+			printf("%s|%s|%s|%s|%s|%s \n",P30($sprint->name),P5($sprint->no),P5($sprint->id),P5($sprint->issuecount),P5($sprint->estimate),P5($sprint->completed));
 		}
 
 		/**********************************************************************/
 		$future_sprints = [];
 		echo TITLE("Future Sprints!")."\n";
-		printf("%s|%s|%s|%s \n",C(P30('Sprint Name')),C(P5('ID')),C(P5('Issue')),C(P5('Estimate')));
+		printf("%s|%s|%s|%s|%s|%s \n",C(P30('Sprint Name')),C(P5('ID')),C(P5('Board')),C(P5('Issue')),C(P5('Estimate')),C(P5('Completed')));
 		foreach($this->sprint_data as $sprint)
 		{
 			if(array_key_exists($sprint->name, $plan))
@@ -214,12 +214,13 @@ class Jira
 		sort($future_sprints);
 		foreach($future_sprints as $sprint)
 		{
-			printf("%s|%s|%s|%s \n",P30($sprint->name),P5($sprint->no),P5($sprint->issuecount),P5($sprint->estimate));
+			printf("%s|%s|%s|%s|%s|%s \n",P30($sprint->name),P5($sprint->no),P5($sprint->id),P5($sprint->issuecount),P5($sprint->estimate),P5($sprint->completed));
 		}
 		/**********************************************************************/
 		$closed_sprints = [];
 		echo TITLE("Closed Sprints!")."\n";
-		printf("%s|%s|%s|%s \n",C(P30('Sprint Name')),C(P5('ID')),C(P5('Issue')),C(P5('Estimate')));
+		printf("%s|%s|%s|%s|%s|%s \n",C(P30('Sprint Name')),C(P5('ID')),C(P5('Board')),C(P5('Issue')),C(P5('Estimate')),C(P5('Completed')));
+		
 		foreach($this->sprint_data as $sprint)
 		{
 			if(array_key_exists($sprint->name, $plan))
@@ -231,7 +232,7 @@ class Jira
 		sort($closed_sprints);
 		foreach($closed_sprints as $sprint)
 		{
-			printf("%s|%s|%s|%s \n",P30($sprint->name),P5($sprint->no),P5($sprint->issuecount),P5($sprint->estimate));
+			printf("%s|%s|%s|%s|%s|%s \n",P30($sprint->name),P5($sprint->no),P5($sprint->id),P5($sprint->issuecount),P5($sprint->estimate),P5($sprint->completed));
 		}
 
 
@@ -330,7 +331,7 @@ class Jira
 
 		/******************************************************************/
 		echo TITLE('Tasks in sprints with no fixversion')."\n";
-		printf("%s|%s \n",C(P12('Jira Key')),C(P30('Sprint Name')),C(P10('Status')));
+		printf("%s|%s \n",C(P12('Jira Key')),C(P30('Sprint Name')),C(P5('Board')),C(P10('Status')));
 		$message = G('None');
 
 		foreach($this->sprint_data as $sprint)
@@ -361,7 +362,7 @@ class Jira
 				{
 					if(($task->matched == 0)&&(count($task->fields->fixVersions)==0)&&($task->fields->_status != 'RESOLVED'))
 					{
-						printf("%s|%s|%s \n",R(P12($task->key)),P30($sprint->name),P10($task->fields->status->name));
+						printf("%s|%s|%s \n",R(P12($task->key)),P30($sprint->name),P5($sprint->id),P10($task->fields->status->name));
 					}
 				}
 				/*unset($sprint->tasks);
@@ -392,11 +393,14 @@ class Jira
 		$sprint->estimate  = 0;
 		$sprint->inplan = 0;
 		$sprint->ignore = 0;
-		
+		$sprint->completed = 0;
 		$sprint->issuecount = count($sprint->tasks);
 		foreach($sprint->tasks as $task)
 		{
 			$sprint->estimate += $task->fields->_estimate;
+			if($task->fields->_status == 'RESOLVED')
+				$sprint->completed += $task->fields->_estimate;
+				
 		}
 		
 	}
