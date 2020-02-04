@@ -72,11 +72,11 @@ class Jira
 		$this->rebuild=$config['rebuild'];
 		
 		
-		$storypoints_field = 'customfield_10022';
-		$sprint_field  = 'customfield_11040';
+		$storypoints_field = $config['storypoint']; //'customfield_10022';
+		$sprint_field  = $config['sprint'];// 'customfield_11040';
 	
 	
-		$this->url = 'https://jira.alm.mentorg.com';
+		$this->url = $config['url']; 
 		$this->user = $config['user'];
 		$this->pass = $config['pass'];
 		$this->taskdata = 
@@ -116,18 +116,45 @@ class Jira
 		$data = $spreadsheet->getActiveSheet()->toArray(null,true,true,true); 
 		
 		$inplan=0;
+		$milestones = [];
+		$milestone = null;
 		foreach($data as $row)
 		{
 			$i=0;
+			
 			foreach($row as $cell)
 			{
 				$i++;
+				
 				if($cell == null)
 				{
 					
 				}
 				else
 				{
+					
+				    if($i==2)
+					{
+						if(array_key_exists($cell,$milestones))
+						{
+							$milestone = $milestones[$cell];
+						}
+						else
+						{
+							$milestone =  new \StdClass();
+							$milestone->inlabel = null;
+							$milestone->notinlabel = null;
+							$milestones[$cell] = $milestone;
+						}
+					}
+					if($i==3)
+					{
+						$milestone->inlabel = strtolower($cell);
+					}
+					if($i==4)
+					{
+						$milestone->notinlabel = strtolower($cell);
+					}
 					
 					$found=0;
 					for($j=0;$j<count($this->sprint_data);$j++)
@@ -144,6 +171,7 @@ class Jira
 							{
 								$inplan=1;
 								$plan[$cell] = $cell;
+								$milestone->sprints[$cell] = $cell;
 							}
 							//dump($jira->sprint_data[$j]);
 							break;
@@ -167,6 +195,88 @@ class Jira
 			echo  $message."\n";
 			exit();
 		}
+		
+		foreach($milestones as $milestone)
+		{
+			foreach($milestone->sprints as $sprint_name)
+			{
+				foreach($this->sprint_data as $sprint)
+				{
+					if($sprint_name == $sprint->name)
+					{
+						//echo $sprint->name."\n";
+	
+						//$milestone->sprints[$sprint->name]=$sprint;
+						foreach($sprint->tasks as $task)
+						{
+							$include =  false;
+							//echo $task->key."\n";
+							//dump($task->fields->labels);
+							//echo "Inlabel = ".$milestone->inlabel."\n";
+							if($milestone->inlabel != null)
+							{
+								//echo "inlabel = ".$milestone->inlabel."\n";
+								//dump($task->fields->labels);
+							
+								foreach($task->fields->labels as $label)
+								{
+									if(strtolower($label)==strtolower($milestone->inlabel))
+									{
+										$include =  true;
+										break;
+									}
+								}
+								//echo "include=".$include."\n";
+							}
+							else
+								$include =  true;
+							
+							if($include ==  false)
+								continue;
+							//echo $include."\n";
+						    
+							if($milestone->notinlabel != null)
+							{
+								//echo "notInlabel = ".$milestone->notinlabel."\n";
+								//dump($task->fields->labels);
+							
+								foreach($task->fields->labels as $label)
+								{
+									if(strtolower($label)==strtolower($milestone->notinlabel))
+									{
+										$include =  false;
+										break;
+									}
+								}
+								//echo "include=".$include."\n";
+							}
+							
+							if($include ==  false)
+								continue;
+							//echo $include."\n";
+							if($include)
+							{
+								$t = $sprint->name;
+								if(!isset($milestone->$t))
+								{
+									$milestone->$t = new \StdClass();
+									$milestone->$t->tasks = [];
+								}
+								$milestone->$t->tasks[] =$task;
+								
+								//$milestone->[$t]
+								//$milestone->$t->tasks[] = $task;
+							}
+							//if(isset($sprint->tasks))
+							//	unset($sprint->tasks);
+						}
+					}
+				}
+			}
+		}
+		//dump($milestones['CB']);
+		//exit();
+		
 		/**********************************************************************/
 		echo TITLE('Sprints out of plan')."\n";
 		printf("%s|%s|%s|%s|%s \n",C(P30('Sprint Name')),C(P5('ID')),C(P5('Board')),C(P5('Issue')),C(P5('Estimate')),C(P10('State')));
@@ -251,6 +361,18 @@ class Jira
 			if(($task->fields->_sprint == null)&&($task->fields->_status != 'RESOLVED')&&($task->fields->_issuetype != 'EPIC')&&
 			($task->fields->_issuetype != 'REQUIREMENT'))
 			{
+				$ignore = 0;
+				
+				foreach($task->fields->labels as $label)
+				{
+					if(strtolower($label)=='jira_governace_nosprint')
+					{
+						$ignore=1;
+						break;
+					}
+				}
+				
+				
 				$createdon = P10($task->fields->_createdon);
 				if($task->fields->_createdon>$lastweekdate)
 					$createdon = Y(P10($task->fields->_createdon));
@@ -258,10 +380,15 @@ class Jira
 				if($task->fields->_sprint != null)
 					$sprint_name = $task->fields->_sprint->name;
 				
-				if($task->fields->_issuetype == 'DEFECT')
-					printf("%s|%s|%s|%s|%s \n",R(P12($task->key)),P8($task->fields->_estimate),P10($task->fields->_status),Y(P12($task->fields->issuetype->name)),$createdon);
+				if($ignore)
+					$key = P12($task->key);
 				else
-					printf("%s|%s|%s|%s|%s \n",R(P12($task->key)),P8($task->fields->_estimate),P10($task->fields->_status),P12($task->fields->issuetype->name),$createdon);
+					$key = R(P12($task->key));
+				
+				if($task->fields->_issuetype == 'DEFECT')
+					printf("%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P10($task->fields->_status),Y(P12($task->fields->issuetype->name)),$createdon);
+				else
+					printf("%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P10($task->fields->_status),P12($task->fields->issuetype->name),$createdon);
 				$total_estimate  += $task->fields->_estimate;
 				$message = '';
 			}
@@ -313,14 +440,29 @@ class Jira
 			if(($task->fields->_estimate == 0)&&($task->fields->_status != 'RESOLVED')&&($task->fields->_issuetype != 'EPIC')&&
 			($task->fields->_issuetype != 'REQUIREMENT'))
 			{
+				$ignore=0;
+				foreach($task->fields->labels as $label)
+				{
+					if(strtolower($label)=='jira_governace_unestimated')
+					{
+						$ignore=1;
+						break;
+					}
+				}
+				
 				$sprintname = 'none';
 				if($task->fields->_sprint != null)
 					$sprintname = $task->fields->_sprint->name;;
 				
-				if($task->fields->_issuetype == 'DEFECT')
-					printf("%s|%s|%s|%s|%s|%s \n",R(P12($task->key)),P8($task->fields->_estimate),Y(P12($task->fields->_issuetype)),P10($task->fields->_status),P30($sprintname),P10($task->fields->_createdon));
+				if($ignore)
+					$key = P12($task->key);
 				else
-					printf("%s|%s|%s|%s|%s|%s \n",R(P12($task->key)),P8($task->fields->_estimate),P12($task->fields->_issuetype),P10($task->fields->_status),P30($sprintname),P10($task->fields->_createdon));
+					$key = R(P12($task->key));
+				
+				if($task->fields->_issuetype == 'DEFECT')
+					printf("%s|%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),Y(P12($task->fields->_issuetype)),P10($task->fields->_status),P30($sprintname),P10($task->fields->_createdon));
+				else
+					printf("%s|%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P12($task->fields->_issuetype),P10($task->fields->_status),P30($sprintname),P10($task->fields->_createdon));
 				
 				//echo $task->key."  ".$task->fields->_estimate."  ".$task->fields->_status."  ".$task->fields->issuetype->name." ".$task->fields->_createdon."\n";
 				$message = '';
@@ -330,15 +472,18 @@ class Jira
 
 
 		/******************************************************************/
-		echo TITLE('Tasks in sprints with no fixversion')."\n";
+		echo TITLE('Tasks in sprints(plan only) with no fixversion')."\n";
 		printf("%s|%s \n",C(P12('Jira Key')),C(P30('Sprint Name')),C(P5('Board')),C(P10('Status')));
 		$message = G('None');
 
 		foreach($this->sprint_data as $sprint)
 		{
+			
 			if(($sprint->inplan)&&($sprint->ignore==0))
 			{
-				$tasks = $this->IssuesInSprint($sprint->id,$sprint->no);
+				//$tasks = $this->IssuesInSprint($sprint->id,$sprint->no);
+				$tasks = $this->IssuesInSprint($sprint->no);
+			
 				foreach($tasks as $task)
 				{
 					if($task->fields->status->statusCategory->id == 3)
@@ -360,9 +505,17 @@ class Jira
 				}
 				foreach($tasks as $task)
 				{
-					if(($task->matched == 0)&&(count($task->fields->fixVersions)==0)&&($task->fields->_status != 'RESOLVED'))
+					if(($task->matched == 0)&&($task->fields->_status != 'RESOLVED'))
 					{
-						printf("%s|%s|%s \n",R(P12($task->key)),P30($sprint->name),P5($sprint->id),P10($task->fields->status->name));
+						$count=0;
+						foreach($task->fields->fixVersions as $version)
+						{
+							$count++;
+							break;
+							//MUMTAZ
+						}
+						if($count==0)
+							printf("%s|%s|%s \n",R(P12($task->key)),P30($sprint->name),P5($sprint->id),P10($task->fields->status->name));
 					}
 				}
 				/*unset($sprint->tasks);
@@ -373,6 +526,48 @@ class Jira
 				exit();*/
 			}
 		}
+		echo TITLE('Milestones Statistics')."\n";
+		printf("%s|%s|%s|%s| \n",C(P10('Milestone')),C(P30('Sprint Name')),C(P8('Estimate')),C(P8('Complete')));
+		
+		foreach($milestones as $milestonename=>$milestone)
+		{
+			echo "\n";
+			foreach($milestone->sprints as $sprintname)
+			{
+				if(!isset($milestone->$sprintname))
+				{
+					$milestone->$sprintname =  new \StdClass();
+					$milestone->$sprintname->tasks = [];
+					
+				}
+				$this->ProcessSprint($milestone->$sprintname);
+				//unset($milestone->$sprintname->tasks);
+				
+				//if($milestonename=='CB' && $sprintname == 'CB - 2020 Sprint 3')
+				//{
+
+					printf("%s|%s|%s|%s| \n",P10($milestonename), P30($sprintname),P8($milestone->$sprintname->estimate),P8($milestone->$sprintname->completed));
+					//foreach($milestone->$sprintname->tasks as $task)
+					//	echo $task->key." ".$task->fields->_estimate."\n";
+					//echo "\n";
+				//}
+				//$this->ProcessSprint($milestone->$sprintname);
+				
+			}
+			
+			
+			//dump($milestone);
+			
+		}
+		/*foreach($this->sprint_data as $sprint)
+		{
+			echo $sprint->name."  ".$sprint->estimate."\n";
+			foreach($sprint->tasks as $task)
+			{
+				echo $task->key." ".$task->fields->_estimate."\n";	
+			}
+		}*/
+		
 		echo "Done";
 
 
@@ -387,7 +582,7 @@ class Jira
 	{
 		return strcmp($b->fields->_createdon, $a->fields->_createdon);
 	}
-
+	
 	function ProcessSprint($sprint)
 	{
 		$sprint->estimate  = 0;
@@ -443,9 +638,17 @@ class Jira
 		if($task->fields->_storypoints > 0 )
 			$task->fields->_estimate = $task->fields->_storypoints;
 		else if(isset($task->fields->timeoriginalestimate))
+		{
 			$task->fields->_estimate = round($task->fields->timeoriginalestimate/(28800),3);
-		
-		
+			//if($task->fields->timespent > $task->fields->timeoriginalestimate)
+			//	$task->fields->_estimate = round($task->fields->timespent/(28800),3);
+		}
+		//if($task->key == 'CB-11908')
+		//{
+			//echo $task->fields->_estimate;
+			//echo  $task->fields->timeoriginalestimate;
+			//exit();
+		//}
 		$this->ParseSprintData($task,$field_sprint);
 		
 	}
@@ -617,7 +820,7 @@ class Jira
 		}
 		return $object;
     }
-	public function Search($query,$fields=null,$order=null)
+	public function Search($query,$fields=null,$order=null,$noprint=0)
 	{
 		if (!file_exists($this->version)) {
 			mkdir($this->version, 0777, true);
@@ -633,11 +836,14 @@ class Jira
 		if(file_exists($filename)&&$this->rebuild==0)
 		{
 			$tasks = json_decode(file_get_contents($filename));
-			echo "Reading from cache\n";
+			if($noprint==0)
+				echo "Reading from cache\n";
 			return $tasks;
 		}
 		$query = str_replace(" ","%20",$query);
-		echo "Syncing with Jira ";
+		if($noprint==0)
+			echo "Syncing with Jira ";
+		
 		while(1)
 		{
 			$resource=$resource=$this->url.'/rest/api/latest/'."search?jql=".$query.'&maxResults='.$maxresults.'&startAt='.$startAt;
@@ -645,7 +851,8 @@ class Jira
 				$resource.='&fields='.$fields;
 		
 			//echo $resource."\n";
-			echo "....";
+			if($noprint==0)
+				echo "....";
 			$t =  $this->GetJiraResource($resource);
 			
 			if($t == null)
@@ -659,11 +866,16 @@ class Jira
 		
 		}
 		//echo $filename;
-		echo "\n";
+		if($noprint==0)
+			echo "\n";
 		file_put_contents( $filename, json_encode( $tasks ) );
 		return $tasks;
 	}
-	public function IssuesInSprint($boardid,$sprintid)
+	public function IssuesInSprint($sprintid)
+	{
+		return $this->Search('sprint='.$sprintid,'key,fixVersions,status',null,1);
+	}
+	public function IssuesInSprintOrigin($boardid,$sprintid)
 	{
 		$filename = $this->version."/cache/".md5($boardid.$sprintid);
 		$tasks = [];
