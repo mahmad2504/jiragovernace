@@ -95,6 +95,7 @@ class Jira
 		];
 		$this->query = 'fixversion='.$config['version'];
 		$this->version = $config['version'];
+		$this->config = $config;
 		$this->fields=$sprint_field.",".$storypoints_field.",timeoriginalestimate,status,statuscategorychangedate,resolutiondate,created,labels,issuetype";
 		$tasks = $this->Search($this->query,$this->fields,null);
 		foreach($tasks as $task)
@@ -348,7 +349,7 @@ class Jira
 
 
 		/**********************************************************************/
-		echo TITLE("Out of sprint tasks")."\n";
+		echo TITLE("Out of sprint tasks i.e tasks in scope of project but placed in backlog")."\n";
 		printf("%s|%s|%s|%s|%s \n",C(P12('Jira Key')),C(P8('Estimate')),C(P10('Status')),C(P12('Issue Type')),C(P12('Created On')));
 		$message = G('None');
 		$tasks_array = (array)$tasks;
@@ -481,8 +482,8 @@ class Jira
 			
 			if(($sprint->inplan)&&($sprint->ignore==0))
 			{
-				//$tasks = $this->IssuesInSprint($sprint->id,$sprint->no);
-				$tasks = $this->IssuesInSprint($sprint->no);
+				$tasks = $this->IssuesInSprint($sprint->id,$sprint->no);
+				//$tasks = $this->IssuesInSprint($sprint->no);
 			
 				foreach($tasks as $task)
 				{
@@ -527,13 +528,23 @@ class Jira
 			}
 		}
 		echo TITLE('Milestones Statistics')."\n";
-		printf("%s|%s|%s|%s| \n",C(P10('Milestone')),C(P30('Sprint Name')),C(P8('Estimate')),C(P8('Complete')));
+		printf("%s|%s|%s|%s|%s \n",C(P10('Milestone')),C(P30('Sprint Name')),C(P8('id')),C(P8('Estimate')),C(P8('Complete')));
 		
 		foreach($milestones as $milestonename=>$milestone)
 		{
 			echo "\n";
 			foreach($milestone->sprints as $sprintname)
 			{
+				$sprintd=null;
+				foreach($this->sprint_data as $sprintd)
+				{
+					if($sprintd->name == $sprintname)
+						break;
+					
+				}
+				$sprintno='';
+				if($sprintd!=null)
+					$sprintno = $sprintd->no;
 				if(!isset($milestone->$sprintname))
 				{
 					$milestone->$sprintname =  new \StdClass();
@@ -546,7 +557,7 @@ class Jira
 				//if($milestonename=='CB' && $sprintname == 'CB - 2020 Sprint 3')
 				//{
 
-					printf("%s|%s|%s|%s| \n",P10($milestonename), P30($sprintname),P8($milestone->$sprintname->estimate),P8($milestone->$sprintname->completed));
+					printf("%s|%s|%s|%s|%s \n",P10($milestonename), P30($sprintname),P8($sprintno),P8($milestone->$sprintname->estimate),P8($milestone->$sprintname->completed));
 					//foreach($milestone->$sprintname->tasks as $task)
 					//	echo $task->key." ".$task->fields->_estimate."\n";
 					//echo "\n";
@@ -703,12 +714,14 @@ class Jira
 			//$sequence = explode('sequence=',$str)[1];
 			//$sequence = explode(']',$sequence)[0];
 			//echo $sequence;
-			if($sequence < $last_sequence)
+			
+			if((int)$sequence < (int)$last_sequence)
 			{
 				continue;
 			}
 			$last_sequence = $sequence;
 			$sprint_info = explode(',',$str);
+			
 			for($i=0;$i<count($sprint_info);$i++)
 			{
 				$keyvalue = explode('=',$sprint_info[$i]);
@@ -740,6 +753,9 @@ class Jira
 			}
 		}
 		$s = new \StdClass();
+		if(($sprintstate == 'CLOSED')&&($task->fields->_status != 'RESOLVED'))
+			return;
+		
 		$s->name = $sprintname;
 		$s->state  = $sprintstate;
 		$s->id = $sprintid;
@@ -758,6 +774,12 @@ class Jira
 			$this->sprint_data[$sprintno] = $s;
 			$this->sprint_data[$sprintno]->tasks[$task->key] = $task;
 		}
+		/*if($task->key == 'INDLIN-583')
+		{
+			dump($task->fields->_status);
+			dump($task->fields->$sprint);
+			exit();
+		}	*/
 	}
 	private function ParseSprintData_newversion($task,$sprint)
 	{
@@ -846,7 +868,7 @@ class Jira
 		
 		while(1)
 		{
-			$resource=$resource=$this->url.'/rest/api/latest/'."search?jql=".$query.'&maxResults='.$maxresults.'&startAt='.$startAt;
+			$resource=$this->url.'/rest/api/latest/'."search?jql=".$query.'&maxResults='.$maxresults.'&startAt='.$startAt;
 			if($fields != null)
 				$resource.='&fields='.$fields;
 		
@@ -871,11 +893,23 @@ class Jira
 		file_put_contents( $filename, json_encode( $tasks ) );
 		return $tasks;
 	}
-	public function IssuesInSprint($sprintid)
+
+	/*public function IssuesInSprint($sprintid)
 	{
-		return $this->Search('sprint='.$sprintid,'key,fixVersions,status',null,1);
+		$sprint_field  = $this->config['sprint'];
+		$tasks = $this->Search('sprint='.$sprintid,$sprint_field.',key,fixVersions,status',null,1);
+		$rtasks = [];
+		foreach($tasks as $task)
+	{
+			if($task->key == 'INDLIN-543')
+				dump($task->fields->$sprint_field);
+			$id = $this->ReadSprintNo($task,$sprint_field)."\n";
+			if($id == $sprintid)
+				$rtasks[] = $tasks;
 	}
-	public function IssuesInSprintOrigin($boardid,$sprintid)
+		return $rtasks;
+	}*/
+	public function IssuesInSprint($boardid,$sprintid)
 	{
 		$filename = $this->version."/cache/".md5($boardid.$sprintid);
 		$tasks = [];
