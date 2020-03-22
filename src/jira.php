@@ -98,9 +98,15 @@ class Jira
 		$this->config = $config;
 		$this->fields=$sprint_field.",".$storypoints_field.",timeoriginalestimate,status,statuscategorychangedate,resolutiondate,created,labels,issuetype";
 		$tasks = $this->Search($this->query,$this->fields,null);
+		$risks = $this->Search($this->query.' and labels in (Risk) and statusCategory  not in (Done)' ,$this->fields,null);
+		
 		foreach($tasks as $task)
 		{
 			$this->ParseData($task,$sprint_field,$storypoints_field);	
+		}
+		foreach($risks as $risk)
+		{
+			$this->ParseData($risk,$sprint_field,$storypoints_field);	
 		}
 		foreach($this->sprint_data as $sprint)
 		{
@@ -277,6 +283,28 @@ class Jira
 		}
 		//dump($milestones['CB']);
 		//exit();
+		$lastweekdate =  date('Y-m-d', strtotime(date("Y-m-d").' -7 Days'));
+		/**********************************************************************/
+		echo TITLE('Risks ')."\n";
+		printf("%s|%s|%s|%s|%s \n",C(P12('Jira Key')),C(P8('Estimate')),C(P10('Status')),C(P12('Issue Type')),C(P12('Created On')));
+		$message = G('None');
+		
+		foreach($risks as $task)
+		{
+			$createdon = P10($task->fields->_createdon);
+			if($task->fields->_createdon>$lastweekdate)
+				$createdon = Y(P10($task->fields->_createdon));
+			$sprint_name = 'None';
+			if($task->fields->_sprint != null)
+				$sprint_name = $task->fields->_sprint->name;
+			
+			$key = R(P12($task->key));
+			
+			if($task->fields->_issuetype == 'DEFECT')
+				printf("%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P10($task->fields->status),Y(P12($task->fields->issuetype->name)),$createdon);
+			else
+				printf("%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P10($task->fields->status),P12($task->fields->issuetype->name),$createdon);
+		}
 		
 		/**********************************************************************/
 		echo TITLE('Sprints out of plan')."\n";
@@ -354,7 +382,7 @@ class Jira
 		$message = G('None');
 		$tasks_array = (array)$tasks;
 		usort($tasks_array, [$this,"cmp_createdon"]);
-		$lastweekdate =  date('Y-m-d', strtotime(date("Y-m-d").' -7 Days'));
+		
 		$total_estimate = 0;
 		foreach($tasks_array as $task)
 		{
@@ -554,7 +582,7 @@ class Jira
 				$this->ProcessSprint($milestone->$sprintname);
 				//unset($milestone->$sprintname->tasks);
 				
-				//if($milestonename=='CB' && $sprintname == 'CB - 2020 Sprint 3')
+				//if($milestonename=='DEV' && $sprintname == 'Omni  2.0.0 2020 Sprint 3')
 				//{
 
 					printf("%s|%s|%s|%s|%s \n",P10($milestonename), P30($sprintname),P8($sprintno),P8($milestone->$sprintname->estimate),P8($milestone->$sprintname->completed));
