@@ -96,7 +96,7 @@ class Jira
 		$this->query = 'fixversion='.$config['version'];
 		$this->version = $config['version'];
 		$this->config = $config;
-		$this->fields=$sprint_field.",".$storypoints_field.",timeoriginalestimate,status,statuscategorychangedate,resolutiondate,created,labels,issuetype";
+		$this->fields=$sprint_field.",".$storypoints_field.",timeoriginalestimate,status,statuscategorychangedate,resolutiondate,created,labels,issuetype,priority";
 		$tasks = $this->Search($this->query,$this->fields,null);
 		$risks = $this->Search($this->query.' and labels in (Risk) and statusCategory  not in (Done)' ,$this->fields,null);
 		
@@ -284,9 +284,78 @@ class Jira
 		//dump($milestones['CB']);
 		//exit();
 		$lastweekdate =  date('Y-m-d', strtotime(date("Y-m-d").' -7 Days'));
+		/***********************************************************************/
+		$defects = [];
+		foreach($tasks as $task)
+		{
+			if($task->fields->_issuetype == 'DEFECT')
+			{
+				$weekclosed = null;
+				if($task->fields->_closedon != null)
+				{
+					$dateclosed = new \DateTime($task->fields->_closedon);
+					if($dateclosed->format("y") < 20)
+						continue;
+			
+					$weekclosed = $dateclosed->format("y")."W".$dateclosed->format("W");
+				}
+				
+				$datecreated = new \DateTime($task->fields->_createdon);
+				if($datecreated->format("y") < 20)
+					continue;
+					
+					
+				$weekcreated = $datecreated->format("y")."W".$datecreated->format("W");
+
+				//echo $task->key." ".$weekcreated." ".$weekclosed." ".$task->fields->status." ".$task->fields->_status." ".$task->fields->_closedon."\n";
+				
+				
+				if(!isset($defects[$weekcreated]))
+				{
+					$defects[$weekcreated] =  new \StdClass();
+					$defects[$weekcreated]->created=1;
+					$defects[$weekcreated]->closed = 0;
+					$defects[$weekcreated]->acc_closed = 0;
+					$defects[$weekcreated]->acc_created = 0;
+				}
+				else
+					$defects[$weekcreated]->created++;
+				
+				if($weekclosed == null)
+					continue;
+				
+				if(!isset($defects[$weekclosed]))
+				{
+					$defects[$weekclosed] =  new \StdClass();
+					$defects[$weekclosed]->closed=1;
+					$defects[$weekclosed]->created=0;
+					$defects[$weekclosed]->acc_closed = 0;
+					$defects[$weekclosed]->acc_created = 0;
+				}
+				else
+					$defects[$weekclosed]->closed++;
+			}
+		}
+		
+		ksort($defects);
+		$acc_created = 0;
+		$acc_closed = 0;
+		foreach($defects as $week=>$obj)
+		{
+			$obj->acc_created = $obj->created + $acc_created;
+			$acc_created = $obj->acc_created;
+			
+			$obj->acc_closed = $obj->closed + $acc_closed;
+			$acc_closed = $obj->acc_closed;
+			
+			echo $week." ".$obj->created." ".$obj->closed." ".$obj->acc_created." ".$obj->acc_closed."\n";
+		}
+			
+		//var_dump(sort($defects_closed));
+		//exit();
 		/**********************************************************************/
 		echo TITLE('Risks ')."\n";
-		printf("%s|%s|%s|%s|%s \n",C(P12('Jira Key')),C(P8('Estimate')),C(P10('Status')),C(P12('Issue Type')),C(P12('Created On')));
+		printf("%s|%s|%s|%s|%s \n",C(P12('Jira Key')),C(P8('Priority')),C(P30('Sprint')),C(P10('Status')),C(P12('Issue Type')),C(P12('Created On')));
 		$message = G('None');
 		
 		foreach($risks as $task)
@@ -299,11 +368,14 @@ class Jira
 				$sprint_name = $task->fields->_sprint->name;
 			
 			$key = R(P12($task->key));
+			$sprintname = 'none';
+			if($task->fields->_sprint != null)
+				$sprintname = $task->fields->_sprint->name;;
 			
 			if($task->fields->_issuetype == 'DEFECT')
-				printf("%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P10($task->fields->status),Y(P12($task->fields->issuetype->name)),$createdon);
+				printf("%s|%s|%s|%s|%s \n",$key,P8($task->fields->priority->name),P30($sprintname),P10($task->fields->status),Y(P12($task->fields->issuetype->name)),$createdon);
 			else
-				printf("%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P10($task->fields->status),P12($task->fields->issuetype->name),$createdon);
+				printf("%s|%s|%s|%s|%s \n",$key,P8($task->fields->priority->name),P30($sprintname),P10($task->fields->status),P12($task->fields->issuetype->name),$createdon);
 		}
 		
 		/**********************************************************************/
@@ -881,7 +953,7 @@ class Jira
 
 		$filename = $this->version."/cache/".md5($query);
 		$startAt = 0;
-		$maxresults = 100;
+		$maxresults = 500;
 		$tasks = [];
 		if(file_exists($filename)&&$this->rebuild==0)
 		{
