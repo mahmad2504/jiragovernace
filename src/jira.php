@@ -31,7 +31,10 @@ function P8($value)
 {
 	return str_pad($value,8);
 }
-
+function P80($value)
+{
+	return str_pad($value,80);
+}
 function P5($value)
 {
 	return str_pad($value,5);
@@ -94,9 +97,10 @@ class Jira
 			]
 		];
 		$this->query = 'fixversion='.$config['version'];
+		//$this->query = 'project=INDLIN and type=Bug';
 		$this->version = $config['version'];
 		$this->config = $config;
-		$this->fields=$sprint_field.",".$storypoints_field.",timeoriginalestimate,status,statuscategorychangedate,resolutiondate,created,labels,issuetype,priority";
+		$this->fields=$sprint_field.",".$storypoints_field.",labels,summary,timeoriginalestimate,status,statuscategorychangedate,resolutiondate,created,labels,issuetype,priority";
 		$tasks = $this->Search($this->query,$this->fields,null);
 		$risks = $this->Search($this->query.' and labels in (Risk) and statusCategory  not in (Done)' ,$this->fields,null);
 		
@@ -113,6 +117,81 @@ class Jira
 			$this->ProcessSprint($sprint);
 		}
 		usort($this->sprint_data, [$this,'cmp_sprintname']);
+		
+		
+		$lastweekdate =  date('Y-m-d', strtotime(date("Y-m-d").' -7 Days'));
+		/***********************************************************************/
+		$defects = [];
+		foreach($tasks as $task)
+		{
+			if($task->fields->_issuetype == 'DEFECT')
+			{
+				$weekclosed = null;
+				if($task->fields->_closedon != null)
+				{
+					$dateclosed = new \DateTime($task->fields->_closedon);
+					if($dateclosed->format("y") < 20)
+						continue;
+			
+					$weekclosed = $dateclosed->format("y")."W".$dateclosed->format("W");
+				}
+				
+				$datecreated = new \DateTime($task->fields->_createdon);
+				if($datecreated->format("y") < 20)
+					continue;
+					
+					
+				$weekcreated = $datecreated->format("y")."W".$datecreated->format("W");
+
+				//echo $task->key." ".$weekcreated." ".$weekclosed." ".$task->fields->status." ".$task->fields->_status." ".$task->fields->_closedon."\n";
+				
+				
+				if(!isset($defects[$weekcreated]))
+				{
+					$defects[$weekcreated] =  new \StdClass();
+					$defects[$weekcreated]->created=1;
+					$defects[$weekcreated]->closed = 0;
+					$defects[$weekcreated]->acc_closed = 0;
+					$defects[$weekcreated]->acc_created = 0;
+				}
+				else
+					$defects[$weekcreated]->created++;
+				
+				if($weekclosed == null)
+					continue;
+				
+				if(!isset($defects[$weekclosed]))
+				{
+					$defects[$weekclosed] =  new \StdClass();
+					$defects[$weekclosed]->closed=1;
+					$defects[$weekclosed]->created=0;
+					$defects[$weekclosed]->acc_closed = 0;
+					$defects[$weekclosed]->acc_created = 0;
+				}
+				else
+					$defects[$weekclosed]->closed++;
+			}
+		}
+		
+		ksort($defects);
+		$acc_created = 0;
+		$acc_closed = 0;
+		foreach($defects as $week=>$obj)
+		{
+			$obj->acc_created = $obj->created + $acc_created;
+			$acc_created = $obj->acc_created;
+			
+			$obj->acc_closed = $obj->closed + $acc_closed;
+			$acc_closed = $obj->acc_closed;
+			
+			echo $week." ".$obj->created." ".$obj->closed." ".$obj->acc_created." ".$obj->acc_closed."\n";
+		}
+		
+		
+		
+		
+		
+		
 		
 		if(!file_exists($this->version."/plan.xlsm"))
 		{
@@ -283,79 +362,48 @@ class Jira
 		}
 		//dump($milestones['CB']);
 		//exit();
-		$lastweekdate =  date('Y-m-d', strtotime(date("Y-m-d").' -7 Days'));
-		/***********************************************************************/
-		$defects = [];
+		
+		/************************************************************************/
+		//var_dump(sort($defects_closed));
+		//exit();
+		/**********************************************************************/
+		echo TITLE('PCR ')."\n";
+		printf("%s|%s|%s|%s|%s \n",C(P12('Jira Key')),C(P8('Priority')),C(P30('Sprint')),C(P10('Status')),C(P12('Issue Type')),C(P8('Created On')));
+		$message = G('None');
+		
 		foreach($tasks as $task)
 		{
-			if($task->fields->_issuetype == 'DEFECT')
-			{
-				$weekclosed = null;
-				if($task->fields->_closedon != null)
-				{
-					$dateclosed = new \DateTime($task->fields->_closedon);
-					if($dateclosed->format("y") < 20)
-						continue;
+			if($task->fields->_issuetype != 'PCR')
+				continue;
 			
-					$weekclosed = $dateclosed->format("y")."W".$dateclosed->format("W");
-				}
-				
-				$datecreated = new \DateTime($task->fields->_createdon);
-				if($datecreated->format("y") < 20)
-					continue;
-					
-					
-				$weekcreated = $datecreated->format("y")."W".$datecreated->format("W");
-
-				//echo $task->key." ".$weekcreated." ".$weekclosed." ".$task->fields->status." ".$task->fields->_status." ".$task->fields->_closedon."\n";
-				
-				
-				if(!isset($defects[$weekcreated]))
-				{
-					$defects[$weekcreated] =  new \StdClass();
-					$defects[$weekcreated]->created=1;
-					$defects[$weekcreated]->closed = 0;
-					$defects[$weekcreated]->acc_closed = 0;
-					$defects[$weekcreated]->acc_created = 0;
-				}
-				else
-					$defects[$weekcreated]->created++;
-				
-				if($weekclosed == null)
-					continue;
-				
-				if(!isset($defects[$weekclosed]))
-				{
-					$defects[$weekclosed] =  new \StdClass();
-					$defects[$weekclosed]->closed=1;
-					$defects[$weekclosed]->created=0;
-					$defects[$weekclosed]->acc_closed = 0;
-					$defects[$weekclosed]->acc_created = 0;
-				}
-				else
-					$defects[$weekclosed]->closed++;
-			}
+			
+			$createdon = P10($task->fields->_createdon);
+			if($task->fields->_createdon>$lastweekdate)
+				$createdon = Y(P10($task->fields->_createdon));
+			$sprint_name = 'None';
+			if($task->fields->_sprint != null)
+				$sprint_name = $task->fields->_sprint->name;
+			
+			if($task->fields->status != 'Satisfied')
+				$key = R(P12($task->key));
+			else
+				$key = P12($task->key);
+			
+			$sprintname = 'none';
+			if($task->fields->_sprint != null)
+				$sprintname = $task->fields->_sprint->name;;
+			
+			if($task->fields->_issuetype == 'DEFECT')
+				printf("%s|%s|%s|%s|%s|%s \n",$key,P8($task->fields->priority->name),P30($sprintname),P10($task->fields->status),Y(P12($task->fields->issuetype->name)),$createdon);
+			else
+				printf("%s|%s|%s|%s|%s|%s \n",$key,P8($task->fields->priority->name),P30($sprintname),P10($task->fields->status),P12($task->fields->issuetype->name),$createdon);
 		}
 		
-		ksort($defects);
-		$acc_created = 0;
-		$acc_closed = 0;
-		foreach($defects as $week=>$obj)
-		{
-			$obj->acc_created = $obj->created + $acc_created;
-			$acc_created = $obj->acc_created;
-			
-			$obj->acc_closed = $obj->closed + $acc_closed;
-			$acc_closed = $obj->acc_closed;
-			
-			echo $week." ".$obj->created." ".$obj->closed." ".$obj->acc_created." ".$obj->acc_closed."\n";
-		}
-			
 		//var_dump(sort($defects_closed));
 		//exit();
 		/**********************************************************************/
 		echo TITLE('Risks ')."\n";
-		printf("%s|%s|%s|%s|%s \n",C(P12('Jira Key')),C(P8('Priority')),C(P30('Sprint')),C(P10('Status')),C(P12('Issue Type')),C(P12('Created On')));
+		printf("%s|%s|%s|%s|%s|%s|%s \n",C(P12('Jira Key')),C(P8('Priority')),C(P30('Sprint')),C(P10('Status')),C(P12('Issue Type')),C(P8('Created On')),C(P12('Summary')));
 		$message = G('None');
 		
 		foreach($risks as $task)
@@ -373,9 +421,9 @@ class Jira
 				$sprintname = $task->fields->_sprint->name;;
 			
 			if($task->fields->_issuetype == 'DEFECT')
-				printf("%s|%s|%s|%s|%s \n",$key,P8($task->fields->priority->name),P30($sprintname),P10($task->fields->status),Y(P12($task->fields->issuetype->name)),$createdon);
+				printf("%s|%s|%s|%s|%s|%s|%s \n",$key,P8($task->fields->priority->name),P30($sprintname),P10($task->fields->status),Y(P12($task->fields->issuetype->name)),P8($createdon),P80($task->fields->summary));
 			else
-				printf("%s|%s|%s|%s|%s \n",$key,P8($task->fields->priority->name),P30($sprintname),P10($task->fields->status),P12($task->fields->issuetype->name),$createdon);
+				printf("%s|%s|%s|%s|%s|%s|%s \n",$key,P8($task->fields->priority->name),P30($sprintname),P10($task->fields->status),P12($task->fields->issuetype->name),P8($createdon),P80($task->fields->summary));
 		}
 		
 		/**********************************************************************/
@@ -450,7 +498,7 @@ class Jira
 
 		/**********************************************************************/
 		echo TITLE("Out of sprint tasks i.e tasks in scope of project but placed in backlog")."\n";
-		printf("%s|%s|%s|%s|%s \n",C(P12('Jira Key')),C(P8('Estimate')),C(P10('Status')),C(P12('Issue Type')),C(P12('Created On')));
+		printf("%s|%s|%s|%s|%s|%s \n",C(P12('Jira Key')),C(P8('Estimate')),C(P10('Status')),C(P12('Issue Type')),C(P8('Created On')),C(P12('Summary')));
 		$message = G('None');
 		$tasks_array = (array)$tasks;
 		usort($tasks_array, [$this,"cmp_createdon"]);
@@ -458,9 +506,9 @@ class Jira
 		$total_estimate = 0;
 		foreach($tasks_array as $task)
 		{
-
+			
 			if(($task->fields->_sprint == null)&&($task->fields->_status != 'RESOLVED')&&($task->fields->_issuetype != 'EPIC')&&
-			($task->fields->_issuetype != 'REQUIREMENT'))
+			($task->fields->_issuetype != 'REQUIREMENT')&&($task->fields->_issuetype !='PCR'))
 			{
 				$ignore = 0;
 				
@@ -487,9 +535,9 @@ class Jira
 					$key = R(P12($task->key));
 				
 				if($task->fields->_issuetype == 'DEFECT')
-					printf("%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P10($task->fields->_status),Y(P12($task->fields->issuetype->name)),$createdon);
+					printf("%s|%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P10($task->fields->_status),Y(P12($task->fields->issuetype->name)),P8($createdon),P80($task->fields->summary));
 				else
-					printf("%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P10($task->fields->_status),P12($task->fields->issuetype->name),$createdon);
+					printf("%s|%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P10($task->fields->_status),P12($task->fields->issuetype->name),P8($createdon),P80($task->fields->summary));
 				$total_estimate  += $task->fields->_estimate;
 				$message = '';
 			}
@@ -533,13 +581,13 @@ class Jira
 		/*******************************************************************/
 
 		echo TITLE('Tasks With no estimate')."\n";
-		printf("%s|%s|%s|%s|%s|%s \n",C(P12('Jira Key')),C(P8('Estimate')),C(P12('Issue Type')),C(P10('Status')),C(P30('Sprint Name')),C(P10('Created')));
+		printf("%s|%s|%s|%s|%s|%s|%s \n",C(P12('Jira Key')),C(P8('Estimate')),C(P12('Issue Type')),C(P10('Status')),C(P30('Sprint Name')),C(P10('Created')),C(P10('Summary')));
 		$message = G('None');
 		$lastweekdate =  date('Y-m-d', strtotime(date("Y-m-d").' -7 Days'));
 		foreach($tasks_array as $task)
 		{
 			if(($task->fields->_estimate == 0)&&($task->fields->_status != 'RESOLVED')&&($task->fields->_issuetype != 'EPIC')&&
-			($task->fields->_issuetype != 'REQUIREMENT'))
+			($task->fields->_issuetype != 'REQUIREMENT')&&($task->fields->_issuetype != 'PCR'))
 			{
 				$ignore=0;
 				foreach($task->fields->labels as $label)
@@ -561,9 +609,9 @@ class Jira
 					$key = R(P12($task->key));
 				
 				if($task->fields->_issuetype == 'DEFECT')
-					printf("%s|%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),Y(P12($task->fields->_issuetype)),P10($task->fields->_status),P30($sprintname),P10($task->fields->_createdon));
+					printf("%s|%s|%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),Y(P12($task->fields->_issuetype)),P10($task->fields->_status),P30($sprintname),P10($task->fields->_createdon),P80($task->fields->summary));
 				else
-					printf("%s|%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P12($task->fields->_issuetype),P10($task->fields->_status),P30($sprintname),P10($task->fields->_createdon));
+					printf("%s|%s|%s|%s|%s|%s|%s \n",$key,P8($task->fields->_estimate),P12($task->fields->_issuetype),P10($task->fields->_status),P30($sprintname),P10($task->fields->_createdon),P80($task->fields->summary));
 				
 				//echo $task->key."  ".$task->fields->_estimate."  ".$task->fields->_status."  ".$task->fields->issuetype->name." ".$task->fields->_createdon."\n";
 				$message = '';
@@ -574,7 +622,7 @@ class Jira
 
 		/******************************************************************/
 		echo TITLE('Tasks in sprints(plan only) with no fixversion')."\n";
-		printf("%s|%s \n",C(P12('Jira Key')),C(P30('Sprint Name')),C(P5('Board')),C(P10('Status')));
+		printf("%s|%s|%s|%s \n",C(P12('Jira Key')),C(P30('Sprint Name')),C(P5('Board')),C(P10('Status')),C(P10('Summary')));
 		$message = G('None');
 
 		foreach($this->sprint_data as $sprint)
@@ -616,7 +664,7 @@ class Jira
 							//MUMTAZ
 						}
 						if($count==0)
-							printf("%s|%s|%s \n",R(P12($task->key)),P30($sprint->name),P5($sprint->id),P10($task->fields->status->name));
+							printf("%s|%s|%s|%s \n",R(P12($task->key)),P30($sprint->name),P5($sprint->id),P10($task->fields->status->name),P80($task->fields->summary));
 					}
 				}
 				/*unset($sprint->tasks);
@@ -718,6 +766,9 @@ class Jira
 		//dump($task->fields->issuetype);
 		$task->fields->_issuetype = $this->MapIssueType($task->fields->issuetype->name,$task->key);
 		
+		if($task->fields->issuetype->name == 'Product Change Request' )
+			$task->fields->issuetype->name='PCR';
+		
 		$task->fields->_createdon = explode("T",$task->fields->created)[0];
 		 
 		
@@ -765,6 +816,7 @@ class Jira
 	}
 	function MapIssueType($issuetype,$key)
 	{
+		
 		if(($issuetype=='Cluster')||($issuetype=='Feature')||($issuetype == ' Customer Requirement')||($issuetype=='ESD Requirement')||($issuetype=='BSP Requirement')||($issuetype=='Requirement'))
 			return 'REQUIREMENT';
 
@@ -777,9 +829,13 @@ class Jira
 		if($issuetype=='Epic')
 			return 'EPIC';
 
-		if(($issuetype=='DocTask')||($issuetype=='DevTask')||($issuetype=='QaTask')||($issuetype=='Documentation')||($issuetype=='Action')||($issuetype=='Dependency')||($issuetype=='Sub-task')||($issuetype=='Issue')||($issuetype=='Risk')||($issuetype=='Bug')||($issuetype=='Task')||($issuetype=='Story')||($issuetype=='Product Change Request')||($issuetype=='New Feature')||($issuetype=='Improvement'))
+		if(($issuetype=='DocTask')||($issuetype=='DevTask')||($issuetype=='QaTask')||($issuetype=='Documentation')||($issuetype=='Action')||($issuetype=='Dependency')||($issuetype=='Sub-task')||($issuetype=='Issue')||($issuetype=='Risk')||($issuetype=='Bug')||($issuetype=='Task')||($issuetype=='Story')||($issuetype=='New Feature')||($issuetype=='Improvement'))
 			return 'TASK';
-
+		
+		
+		if($issuetype=='Product Change Request')
+			return 'PCR';
+		
 		echo 'Error::Unmapped type=['.$key.' '.$issuetype.']'."\n";
 		return 'TASK';
 		//
@@ -1000,13 +1056,13 @@ class Jira
 		$tasks = $this->Search('sprint='.$sprintid,$sprint_field.',key,fixVersions,status',null,1);
 		$rtasks = [];
 		foreach($tasks as $task)
-	{
+		{
 			if($task->key == 'INDLIN-543')
 				dump($task->fields->$sprint_field);
 			$id = $this->ReadSprintNo($task,$sprint_field)."\n";
 			if($id == $sprintid)
 				$rtasks[] = $tasks;
-	}
+		}
 		return $rtasks;
 	}*/
 	public function IssuesInSprint($boardid,$sprintid)
@@ -1018,7 +1074,7 @@ class Jira
 			$tasks = json_decode(file_get_contents($filename));
 			return $tasks;
 		}
-		$resource=$resource=$this->url.'/rest/agile/1.0/board/'.$boardid.'/sprint/'.$sprintid.'/issue?fields=key,fixVersions,status';
+		$resource=$resource=$this->url.'/rest/agile/1.0/board/'.$boardid.'/sprint/'.$sprintid.'/issue?fields=summar,key,fixVersions,status';
 		$tasks =  $this->GetJiraResource($resource);
 		
 		file_put_contents( $filename, json_encode( $tasks ) );
